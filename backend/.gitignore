@@ -1,0 +1,6 @@
+# Byte-compiled / cache files
+__pycache__/
+
+# Env & secrets
+.env
+.env.*
