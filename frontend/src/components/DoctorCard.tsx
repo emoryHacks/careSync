@@ -2,6 +2,12 @@ import React from 'react';
 import { Calendar, Clock, BadgeCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
+interface TimeSlot {
+  date: string;
+  times: string[];
+  available: boolean;
+}
+
 interface Doctor {
   id: string;
   name: string;
@@ -12,6 +18,8 @@ interface Doctor {
   image: string;
   fee: number;
   verified: boolean;
+  timeSlots: TimeSlot[];
+  webexLink: string;
 }
 
 interface DoctorCardProps {

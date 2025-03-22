@@ -1,7 +1,14 @@
+// ✅ Updated Appointments.tsx with string-based time slots, date + time selection, and time confirmation UI
 import React, { useState, useEffect } from 'react';
 import { format, addDays } from 'date-fns';
-import { Calendar, Clock, X, BadgeCheck } from 'lucide-react';
+import { Calendar, Clock, X, BadgeCheck, Video } from 'lucide-react';
 import DoctorCard from '../components/DoctorCard';
+
+interface TimeSlot {
+  date: string;
+  times: string[];
+  available: boolean;
+}
 
 interface Doctor {
   id: string;
@@ -13,6 +20,8 @@ interface Doctor {
   image: string;
   fee: number;
   verified: boolean;
+  timeSlots: TimeSlot[];
+  webexLink: string;
 }
 
 interface Appointment {
@@ -22,11 +31,7 @@ interface Appointment {
   end: Date;
   doctor: Doctor;
   type: string;
-}
-
-interface TimeSlot {
-  date: Date;
-  available: boolean;
+  videoLink?: string;
 }
 
 const mockDoctors: Doctor[] = [
@@ -36,10 +41,16 @@ const mockDoctors: Doctor[] = [
     specialty: 'Diabetologist',
     qualification: 'MD, DM (Endocrinology)',
     experience: '12',
-    about: 'Dr. James is a renowned diabetologist with extensive experience in managing complex diabetes cases. He specializes in creating personalized treatment plans and has helped numerous patients achieve better glycemic control through lifestyle modifications and appropriate medical interventions.',
-    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2340&q=80',
+    about: 'Dr. James is a renowned diabetologist with extensive experience in managing complex diabetes cases.',
+    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=2340&q=80',
     fee: 80,
-    verified: true
+    verified: true,
+    webexLink: 'https://gsumeetings.webex.com/meet/rnarra2',
+    timeSlots: [
+      { date: '2025-03-22', times: ['10:00 AM', '2:00 PM'], available: true },
+      { date: '2025-03-23', times: ['11:00 AM'], available: true },
+      { date: '2025-03-24', times: [], available: false }
+    ]
   },
   {
     id: '2',
@@ -47,10 +58,16 @@ const mockDoctors: Doctor[] = [
     specialty: 'Endocrinologist',
     qualification: 'MD, DM (Endocrinology)',
     experience: '15',
-    about: 'Dr. Johnson is a highly experienced endocrinologist specializing in diabetes management and metabolic disorders. She is known for her comprehensive approach to diabetes care, incorporating the latest treatment protocols and technology.',
-    image: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2340&q=80',
+    about: 'Dr. Johnson specializes in diabetes management and metabolic disorders. She uses the latest treatment protocols and technology to offer personalized care.',
+    image: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=2340&q=80',
     fee: 90,
-    verified: true
+    verified: true,
+    webexLink: 'https://gsumeetings.webex.com/meet/mkalyanam1',
+    timeSlots: [
+      { date: '2025-03-22', times: ['9:00 AM', '1:30 PM'], available: true },
+      { date: '2025-03-23', times: ['2:00 PM', '4:30 PM'], available: true },
+      { date: '2025-03-25', times: [], available: false }
+    ]
   },
   {
     id: '3',
@@ -58,82 +75,71 @@ const mockDoctors: Doctor[] = [
     specialty: 'Diabetologist',
     qualification: 'MBBS, Fellowship in Diabetology',
     experience: '8',
-    about: 'Dr. Chen specializes in managing type 1 and type 2 diabetes, with particular expertise in insulin pump therapy and continuous glucose monitoring systems. He is dedicated to helping patients achieve optimal diabetes control through education and personalized care plans.',
-    image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2340&q=80',
+    about: 'Dr. Chen focuses on managing type 1 and type 2 diabetes, with expertise in insulin pumps and continuous glucose monitoring.',
+    image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=2340&q=80',
     fee: 75,
-    verified: true
+    verified: true,
+    webexLink: 'https://webex.com/meet/dr.chen',
+    timeSlots: [
+      { date: '2025-03-22', times: ['10:30 AM', '3:00 PM'], available: true },
+      { date: '2025-03-24', times: ['11:00 AM'], available: true },
+      { date: '2025-03-25', times: [], available: false }
+    ]
   }
 ];
 
-const generateTimeSlots = (startDate: Date): TimeSlot[] => {
-  const slots: TimeSlot[] = [];
-  const daysToShow = 7;
 
-  for (let day = 0; day < daysToShow; day++) {
-    const currentDate = addDays(startDate, day);
-    slots.push({
-      date: currentDate,
-      available: Math.random() > 0.3 // Randomly determine availability
-    });
-  }
-
-  return slots;
-};
 
 export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-
-  useEffect(() => {
-    // Initialize with mock appointments
-    const mockAppointments: Appointment[] = [
-      {
-        id: '1',
-        title: 'Diabetes Consultation',
-        start: new Date(2024, 2, 15, 10, 0),
-        end: new Date(2024, 2, 15, 11, 0),
-        doctor: mockDoctors[0],
-        type: 'Diabetes Consultation'
-      }
-    ];
-    setAppointments(mockAppointments);
-  }, []);
-
-  useEffect(() => {
-    if (selectedDoctor) {
-      setTimeSlots(generateTimeSlots(new Date()));
-    }
-  }, [selectedDoctor]);
 
   const handleScheduleWithDoctor = (doctor: Doctor) => {
     setSelectedDoctor(doctor);
     setShowModal(true);
+    setSelectedDate(null);
+    setSelectedTime(null);
   };
 
-  const handleDateSelect = (date: Date) => {
+  const handleDateSelect = (date: string) => {
     setSelectedDate(date);
+    setSelectedTime(null); // Reset previously selected time
   };
 
   const handleScheduleAppointment = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedDoctor || !selectedDate) return;
+    if (!selectedDoctor || !selectedDate || !selectedTime) return;
+    const isDuplicate = appointments.some(app =>
+      app.doctor.id === selectedDoctor.id &&
+      format(app.start, 'yyyy-MM-dd') === selectedDate &&
+      format(app.start, 'h:mm a') === selectedTime
+    );
+
+    if (isDuplicate) {
+      alert('This slot has already been booked. Please choose a different time.');
+      return;
+    }
 
     const formData = new FormData(e.currentTarget);
+    const dateObj = new Date(`${selectedDate} ${selectedTime}`);
+
     const newAppointment: Appointment = {
       id: Math.random().toString(),
       title: `${formData.get('type')} with ${selectedDoctor.name}`,
-      start: selectedDate,
-      end: new Date(selectedDate.getTime() + 60 * 60 * 1000),
+      start: dateObj,
+      end: new Date(dateObj.getTime() + 60 * 60 * 1000),
       doctor: selectedDoctor,
-      type: formData.get('type') as string
+      type: formData.get('type') as string,
+      videoLink: selectedDoctor.webexLink
     };
     setAppointments([...appointments, newAppointment]);
     setShowModal(false);
     setSelectedDoctor(null);
     setSelectedDate(null);
+    setSelectedTime(null);
   };
 
   const cancelAppointment = (appointmentId: string) => {
@@ -158,7 +164,6 @@ export default function App() {
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-2xl font-bold mb-6">My Appointments</h2>
-          
           <div className="mt-8">
             <h3 className="text-xl font-semibold mb-4">Upcoming Appointments</h3>
             <div className="space-y-4">
@@ -181,16 +186,23 @@ export default function App() {
                           <span>{format(appointment.start, 'MMMM d, yyyy')}</span>
                           <Clock size={16} className="ml-2" />
                           <span>{format(appointment.start, 'h:mm a')}</span>
-                        </div>
+                          <div className="text-sm text-blue-600 mt-1">
+
+</div>
                       </div>
                     </div>
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => cancelAppointment(appointment.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-                      >
-                        Cancel
-                      </button>
+                  </div>
+                  <div>
+                  <button
+  onClick={() => window.open(appointment.videoLink, '_blank')}
+  className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 mr-2"
+>Join Video</button>
+                    <button
+                      onClick={() => cancelAppointment(appointment.id)}
+                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                    >
+                      Cancel
+                    </button>
                     </div>
                   </div>
                 ))}
@@ -204,12 +216,13 @@ export default function App() {
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
                   <h3 className="text-xl font-semibold">Schedule Appointment</h3>
-                  <button 
+                  <button
                     onClick={() => {
                       setShowModal(false);
                       setSelectedDoctor(null);
                       setSelectedDate(null);
-                    }} 
+                      setSelectedTime(null);
+                    }}
                     className="text-gray-500 hover:text-gray-700"
                   >
                     <X size={24} />
@@ -227,9 +240,7 @@ export default function App() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="text-lg font-semibold">{selectedDoctor.name}</h4>
-                      {selectedDoctor.verified && (
-                        <BadgeCheck className="text-blue-600 w-5 h-5" />
-                      )}
+                      {selectedDoctor.verified && <BadgeCheck className="text-blue-600 w-5 h-5" />}
                     </div>
                     <p className="text-gray-600">{selectedDoctor.qualification} - {selectedDoctor.specialty}</p>
                     <p className="text-sm text-gray-500">{selectedDoctor.experience} Years Experience</p>
@@ -239,28 +250,31 @@ export default function App() {
                 <div className="mb-6">
                   <h4 className="font-semibold text-gray-900 mb-4">Booking slots</h4>
                   <div className="grid grid-cols-7 gap-3">
-                    {timeSlots.map((slot, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleDateSelect(slot.date)}
-                        disabled={!slot.available}
-                        className={`
-                          py-3 px-2 rounded-xl text-center transition-colors
-                          ${selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(slot.date, 'yyyy-MM-dd')
-                            ? 'bg-blue-600 text-white'
-                            : slot.available
-                            ? 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
-                            : 'bg-gray-50 opacity-50 cursor-not-allowed border border-gray-200'
-                          }
-                        `}
-                      >
-                        <div className="text-sm font-medium mb-1">
-                          {format(slot.date, 'EEE')}
-                        </div>
-                        <div className="text-lg font-bold">
-                          {format(slot.date, 'd')}
-                        </div>
-                      </button>
+                    {selectedDoctor.timeSlots.map((slot, index) => (
+                      <div key={index} className="flex flex-col items-center">
+                        <button
+                          onClick={() => handleDateSelect(slot.date)}
+                          disabled={!slot.available}
+                          className={`py-3 px-2 rounded-xl text-center transition-colors w-full
+                            ${selectedDate === slot.date ? 'bg-blue-600 text-white' : slot.available ? 'bg-gray-50 hover:bg-gray-100 border border-gray-200' : 'bg-gray-50 opacity-50 cursor-not-allowed border border-gray-200'}`}
+                        >
+                          <div className="text-sm font-medium mb-1">{format(new Date(slot.date), 'EEE')}</div>
+                          <div className="text-lg font-bold">{format(new Date(slot.date), 'd')}</div>
+                        </button>
+                        {selectedDate === slot.date && (
+                          <div className="mt-2 flex flex-wrap gap-2 justify-center">
+                            {slot.times.map((time, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setSelectedTime(time)}
+                                className={`text-xs px-3 py-1 rounded-md border ${selectedTime === time ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                              >
+                                {time}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -286,7 +300,17 @@ export default function App() {
                       <label className="block text-gray-700 mb-2 font-medium">Selected Date</label>
                       <input
                         type="text"
-                        value={format(selectedDate, 'MMMM d, yyyy')}
+                        value={format(new Date(selectedDate), 'MMMM d, yyyy')}
+                        disabled
+                        className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 mb-2 font-medium">Selected Time</label>
+                      <input
+                        type="text"
+                        value={selectedTime || 'Not selected'}
                         disabled
                         className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50"
                       />
