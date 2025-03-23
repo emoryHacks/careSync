@@ -1,6 +1,5 @@
 import React from 'react';
 import { Calendar, Clock, BadgeCheck } from 'lucide-react';
-import { format } from 'date-fns';
 
 interface TimeSlot {
   date: string;

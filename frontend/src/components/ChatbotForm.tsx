@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle } from 'lucide-react';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FormData {
   age: string;
@@ -23,6 +25,7 @@ const commonSymptoms = [
 ];
 
 export default function ChatbotForm() {
+  const { user } = useAuth();
   const [formData, setFormData] = useState<FormData>({
     age: '',
     gender: '',
@@ -76,11 +79,46 @@ export default function ChatbotForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [predictionResult, setPredictionResult] = useState<string | null>(null);
+  const [predictionSummary, setPredictionSummary] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      console.log('Form submitted:', formData);
-      // Handle form submission here
+    if (!validateForm()) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      // console.log(token);
+
+      const res = await axios.post(
+        'http://localhost:5000/api/health-profile',
+        {
+          age: formData.age,
+          gender: formData.gender,
+          bmi: formData.bmi,
+          familyHistory: formData.familyHistory,
+          fastingBloodSugar: formData.fastingBloodSugar,
+          hba1c: formData.hba1c,
+          symptoms: formData.symptoms,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      alert('Health profile submitted successfully!');
+      // Assume response has { message, has_diabetes }
+      const result = res.data.has_diabetes === true ? 'Yes' : 'No';
+      setPredictionResult(result);
+      setPredictionSummary(res.data.result);
+      setShowResult(true);
+    } catch (error: any) {
+      console.error('Health profile submit error:', error);
+      alert('Failed to submit. Check console for details.');
     }
   };
 
@@ -265,6 +303,17 @@ export default function ChatbotForm() {
           Analyze Risk
         </button>
       </form>
+      {showResult && (
+        <div className="mt-6 p-4 rounded-lg border border-blue-200 bg-blue-50 text-blue-800 text-center">
+          <h3 className="text-lg font-semibold mb-2">Prediction Result</h3>
+          <p className="text-xl">
+            {predictionResult === 'Yes'
+              ? "The model predicts that you may have diabetes." + predictionSummary
+              : "The model predicts that you do not have diabetes." + predictionSummary} 
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }

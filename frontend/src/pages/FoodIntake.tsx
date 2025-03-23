@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Utensils, Coffee, Sun, Moon, Calculator } from 'lucide-react';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FoodItem {
   name: string;
@@ -9,38 +11,43 @@ interface FoodItem {
 
 interface MealFormProps {
   mealType: string;
-  foodItems: FoodItem[];
+  items: FoodItem[];
+  setItems: (items: FoodItem[]) => void;
+  totalCalories: number;
+  setTotalCalories: (totalCalories: number) => void;
   onSubmit: (items: FoodItem[]) => void;
 }
 
-function MealForm({ mealType, foodItems, onSubmit }: MealFormProps) {
-  const [items, setItems] = useState<FoodItem[]>(foodItems);
-  const [totalCalories, setTotalCalories] = useState(0);
+function MealForm({ mealType, items, setItems, totalCalories, setTotalCalories, onSubmit }: MealFormProps) {
+  const [draftItems, setDraftItems] = useState<FoodItem[]>(JSON.parse(JSON.stringify(items)));
 
   const handleQuantityChange = (index: number, value: string) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], quantity: value };
-    setItems(newItems);
-
-    // Calculate total calories
-    const total = newItems.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity) || 0;
-      const caloriesPer100g = parseFloat(item.calories);
-      return sum + (quantity * caloriesPer100g) / 100;
-    }, 0);
-    setTotalCalories(Math.round(total));
+    const updated = [...draftItems];
+    updated[index] = { ...updated[index], quantity: value };
+    setDraftItems(updated);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(items);
+
+    // Calculate total calories on submit
+    const total = draftItems.reduce((sum, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const caloriesPer100g = parseFloat(item.calories);
+      return sum + (quantity * caloriesPer100g) / 100;
+    }, 0);
+
+    // Update parent state
+    setItems(draftItems);
+    setTotalCalories(Math.round(total));
+    onSubmit(draftItems);
   };
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-6">
-          {items.map((item, index) => (
+          {draftItems.map((item, index) => (
             <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 rounded-lg hover:bg-gray-50 transition-colors">
               <div>
                 <label className="text-sm font-medium text-gray-700">{item.name}</label>
@@ -75,7 +82,15 @@ function MealForm({ mealType, foodItems, onSubmit }: MealFormProps) {
               <Calculator className="h-5 w-5 text-blue-500" />
               <span className="text-lg font-medium text-gray-900">Total Calories:</span>
             </div>
-            <span className="text-xl font-bold text-blue-600">{totalCalories} kcal</span>
+            <span className="text-xl font-bold text-blue-600">
+              {
+                draftItems.reduce((sum, item) => {
+                  const quantity = parseFloat(item.quantity) || 0;
+                  const caloriesPer100g = parseFloat(item.calories);
+                  return sum + (quantity * caloriesPer100g) / 100;
+                }, 0).toFixed(0)
+              } kcal
+            </span>
           </div>
         </div>
 
@@ -90,36 +105,73 @@ function MealForm({ mealType, foodItems, onSubmit }: MealFormProps) {
   );
 }
 
+
 export default function FoodIntake() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('breakfast');
 
-  const breakfastItems = [
+  const [breakfastItems, setBreakfastItems] = useState<FoodItem[]>([
     { name: "Oatmeal", quantity: "", calories: "68" },
     { name: "Whole Wheat Bread", quantity: "", calories: "247" },
     { name: "Eggs", quantity: "", calories: "155" },
     { name: "Milk", quantity: "", calories: "42" },
     { name: "Banana", quantity: "", calories: "89" }
-  ];
+  ]);
+  const [breakfastCalories, setBreakfastCalories] = useState(0);
 
-  const lunchItems = [
+  const [lunchItems, setLunchItems] = useState<FoodItem[]>([
     { name: "Brown Rice", quantity: "", calories: "111" },
     { name: "Chicken Breast", quantity: "", calories: "165" },
     { name: "Mixed Vegetables", quantity: "", calories: "65" },
     { name: "Fish", quantity: "", calories: "206" },
     { name: "Lentils", quantity: "", calories: "116" }
-  ];
+  ]);
+  const [lunchCalories, setLunchCalories] = useState(0);
 
-  const dinnerItems = [
+  const [dinnerItems, setDinnerItems] = useState<FoodItem[]>([
     { name: "Quinoa", quantity: "", calories: "120" },
     { name: "Lean Beef", quantity: "", calories: "250" },
     { name: "Sweet Potato", quantity: "", calories: "86" },
     { name: "Greek Yogurt", quantity: "", calories: "59" },
     { name: "Almonds", quantity: "", calories: "579" }
-  ];
+  ]);
+  const [dinnerCalories, setDinnerCalories] = useState(0);
 
-  const handleMealSubmit = (mealType: string, items: FoodItem[]) => {
+  const handleMealSubmit = async (mealType: string, items: FoodItem[]) => {
     console.log(`${mealType} items:`, items);
-    // Here you would typically save this to your backend
+
+    // Filter only items with quantity > 0
+    const filteredItems = items
+      .filter((item) => parseFloat(item.quantity) > 0)
+      .map((item) => ({
+        name: item.name,
+        quantity_g: parseFloat(item.quantity),
+        calories: Math.round((parseFloat(item.quantity) * parseFloat(item.calories)) / 100)
+      }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const payload = {
+        meal: mealType.toLowerCase(),
+        items: filteredItems
+      }
+      
+      await axios.post(
+        'http://localhost:5000/api/food-intake',
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      alert(`${mealType} saved successfully!`);
+    } catch (error) {
+      console.error('Error saving food intake:', error);
+      alert('Failed to save food intake.');
+    }
   };
 
   const tabs = [
@@ -135,6 +187,7 @@ export default function FoodIntake() {
         <h2 className="text-2xl font-bold text-gray-900">Daily Food Intake Tracker</h2>
       </div>
 
+      {/* Tab Navigation */}
       <div className="mb-8">
         <div className="sm:hidden">
           <select
@@ -180,25 +233,35 @@ export default function FoodIntake() {
         </div>
       </div>
 
+      {/* Meal Forms */}
       <div className="mt-8">
         {activeTab === 'breakfast' && (
           <MealForm
             mealType="Breakfast"
-            foodItems={breakfastItems}
+            items={breakfastItems}
+            setItems={setBreakfastItems}
+            totalCalories={breakfastCalories}
+            setTotalCalories={setBreakfastCalories}
             onSubmit={(items) => handleMealSubmit("Breakfast", items)}
           />
         )}
         {activeTab === 'lunch' && (
           <MealForm
             mealType="Lunch"
-            foodItems={lunchItems}
+            items={lunchItems}
+            setItems={setLunchItems}
+            totalCalories={lunchCalories}
+            setTotalCalories={setLunchCalories}
             onSubmit={(items) => handleMealSubmit("Lunch", items)}
           />
         )}
         {activeTab === 'dinner' && (
           <MealForm
             mealType="Dinner"
-            foodItems={dinnerItems}
+            items={dinnerItems}
+            setItems={setDinnerItems}
+            totalCalories={dinnerCalories}
+            setTotalCalories={setDinnerCalories}
             onSubmit={(items) => handleMealSubmit("Dinner", items)}
           />
         )}

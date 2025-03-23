@@ -8,12 +8,14 @@ import Appointments from './pages/Appointments';
 import Chatbot from './pages/Chatbot';
 import FoodIntake from './pages/FoodIntake';
 import Navbar from './components/Navbar';
+import { useLocation } from 'react-router-dom';
 
 function App() {
+const location = useLocation();
+console.log(location.pathname); 
   return (
     <AuthProvider>
-      <Router>
-      <Navbar />
+      {location.pathname != '/register' && location.pathname != "/login" && <Navbar />}
       <main className="container mx-auto">
         <Routes>
           <Route path="/register" element={<Register />} />
@@ -25,7 +27,6 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      </Router>
     </AuthProvider>
   );
 }
